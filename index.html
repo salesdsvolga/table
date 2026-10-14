@@ -87,10 +87,17 @@
   form { padding: 0 14px 14px; display: none; }
   .item.open form { display: block; }
   label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
-  input[type=text] {
+  input[type=text], input[type=tel] {
     width: 100%; padding: 11px 12px; font: inherit; color: var(--text);
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
   }
+  .grp { margin-top: 12px; padding: 4px 12px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .grp label { margin-top: 8px; font-weight: 600; color: var(--text); }
+  .pair { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  @media (min-width: 520px) { .pair { grid-template-columns: 1fr 1fr; } }
+  .grp input[type=text], .grp input[type=tel] { background: var(--surface); }
+  .copy { margin-top: 10px; padding: 8px 12px; font-size: 14px; color: var(--accent); border-color: var(--accent); }
+  .copy[hidden] { display: none; }
   .row { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
   .btn {
     font: inherit; font-weight: 600; padding: 11px 18px; border-radius: 10px; cursor: pointer;
@@ -233,6 +240,31 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const GROUPS = [['a', 'Кто делает заявки'], ['b', 'Кто их подтверждает'], ['c', 'Кто принимает товар']];
+
+// Формат: 8 (927) 123-45-67, первая цифра всегда 8
+function formatPhone(raw) {
+  let d = String(raw).replace(/\D/g, '');
+  if (!d) return '8';
+  if (d[0] === '7' || d[0] === '8') d = d.slice(1);
+  d = d.slice(0, 10);
+  let s = '8';
+  if (d.length) s += ' (' + d.slice(0, 3);
+  if (d.length > 3) s += ') ' + d.slice(3, 6);
+  if (d.length > 6) s += '-' + d.slice(6, 8);
+  if (d.length > 8) s += '-' + d.slice(8, 10);
+  return s;
+}
+function phoneOk(p) { return String(p).replace(/\D/g, '').length === 11; }
+
+function grpHtml(k, title, d) {
+  d = d || { n: '', p: '8' };
+  return '<div class="grp"><label>' + title + '</label><div class="pair">' +
+    '<input type="text" name="' + k + '_n" placeholder="Имя" list="people" autocomplete="off" value="' + esc(d.n) + '">' +
+    '<input type="tel" name="' + k + '_p" inputmode="tel" placeholder="8 (900) 000-00-00" autocomplete="off" value="' + esc(d.p || '8') + '">' +
+    '</div><button type="button" class="btn ghost copy" data-copy="' + k + '" hidden>Скопировать в остальные</button></div>';
+}
+
 function render() {
   const q = els.search.value.trim().toLowerCase();
   const shown = items.filter(i => !q || i.name.toLowerCase().includes(q));
@@ -255,10 +287,7 @@ function render() {
     li.innerHTML =
       '<button type="button" class="head" aria-expanded="' + (i.row === openRow) + '">' +
         '<div class="name">' + esc(i.name) + '</div><div class="tags">' + typeTags(i) + '</div></button>' +
-      '<form>' +
-        '<label>Кто делает заявки</label><input type="text" name="a" list="people" autocomplete="off" value="' + esc(dr.a) + '">' +
-        '<label>Кто их подтверждает</label><input type="text" name="b" list="people" autocomplete="off" value="' + esc(dr.b) + '">' +
-        '<label>Кто принимает товар</label><input type="text" name="c" list="people" autocomplete="off" value="' + esc(dr.c) + '">' +
+      '<form novalidate>' + GROUPS.map(g => grpHtml(g[0], g[1], dr[g[0]])).join('') +
         '<div class="row"><button class="btn" type="submit">Отправить</button>' +
         '<button class="btn ghost" type="button" data-act="cancel">Свернуть</button>' +
         '<span class="err" role="alert"></span></div>' +
@@ -267,23 +296,43 @@ function render() {
     li.querySelector('.head').onclick = () => { openRow = (openRow === i.row) ? null : i.row; render(); focusFirst(); };
     li.querySelector('[data-act=cancel]').onclick = () => { openRow = null; render(); };
     const form = li.querySelector('form');
-    form.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
-      drafts[i.row] = { a: form.a.value, b: form.b.value, c: form.c.value };
-    }));
+    const readGroup = k => ({ n: form[k + '_n'].value, p: form[k + '_p'].value });
+    const saveDraft = () => { drafts[i.row] = { a: readGroup('a'), b: readGroup('b'), c: readGroup('c') }; };
+    const updateCopy = () => GROUPS.forEach(g => {
+      const v = readGroup(g[0]);
+      form.querySelector('[data-copy=' + g[0] + ']').hidden = !(v.n.trim() && phoneOk(v.p));
+    });
+    GROUPS.forEach(g => {
+      const ph = form[g[0] + '_p'];
+      ph.addEventListener('input', () => { ph.value = formatPhone(ph.value); });
+      ph.addEventListener('focus', () => { setTimeout(() => ph.setSelectionRange(ph.value.length, ph.value.length), 0); });
+    });
+    form.addEventListener('input', () => { saveDraft(); updateCopy(); });
+    form.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+      const k = b.dataset.copy, src = readGroup(k);
+      GROUPS.forEach(g => { if (g[0] !== k) { form[g[0] + '_n'].value = src.n; form[g[0] + '_p'].value = src.p; } });
+      saveDraft(); updateCopy(); toast('Скопировано в остальные поля');
+    });
+    updateCopy();
     form.onsubmit = ev => { ev.preventDefault(); submit(i, form, li); };
     els.list.appendChild(li);
   });
 }
 
 function focusFirst() {
-  const f = els.list.querySelector('.item.open input[name=a]');
+  const f = els.list.querySelector('.item.open input[name=a_n]');
   if (f) { f.focus(); f.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 }
 
 async function submit(item, form, li) {
-  const a = form.a.value.trim(), b = form.b.value.trim(), c = form.c.value.trim();
   const err = li.querySelector('.err');
-  if (!a || !b || !c) { err.textContent = 'Заполните все три поля'; return; }
+  const vals = [];
+  for (const g of GROUPS) {
+    const n = form[g[0] + '_n'].value.trim(), p = form[g[0] + '_p'].value;
+    if (!n || !phoneOk(p)) { err.textContent = 'Укажите имя и телефон полностью: «' + g[1] + '»'; return; }
+    vals.push({ n, text: n + ', ' + p });
+  }
+  const a = vals[0].text, b = vals[1].text, c = vals[2].text;
   err.textContent = '';
   const btn = form.querySelector('button[type=submit]');
   btn.disabled = true; btn.textContent = 'Отправляем…';
@@ -301,7 +350,7 @@ async function submit(item, form, li) {
       if (d.refresh) { sending = false; refresh(true); }
       return;
     }
-    rememberPeople([a, b, c]);
+    rememberPeople(vals.map(v => v.n));
     delete drafts[item.row];
     items = items.filter(x => x.row !== item.row);
     lastSig = JSON.stringify(items);
