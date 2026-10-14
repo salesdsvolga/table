@@ -332,10 +332,17 @@ async function submit(item, form, li) {
   const vals = [];
   for (const g of GROUPS) {
     const n = form[g[0] + '_n'].value.trim(), p = form[g[0] + '_p'].value;
-    if (!n || !phoneOk(p)) { err.textContent = 'Укажите имя и телефон полностью: «' + g[1] + '»'; return; }
+    const emptyPhone = p.replace(/\D/g, '').length <= 1;   // остался только «8»
+    if (!n && emptyPhone) { vals.push({ n: '', text: '' }); continue; }   // блок не заполняли — это нормально
+    if (!n || !phoneOk(p)) {
+      err.textContent = 'В блоке «' + g[1] + '» нужны и имя, и полный телефон (или очистите блок)';
+      return;
+    }
     vals.push({ n, text: n + ', ' + p });
   }
-  const a = vals[0].text, b = vals[1].text, c = vals[2].text;
+  if (!vals.some(v => v.text)) { err.textContent = 'Заполните хотя бы один блок: имя и телефон'; return; }
+  // Пустые блоки уходят в таблицу прочерком: скрипт в таблице требует все три колонки
+  const a = vals[0].text || '—', b = vals[1].text || '—', c = vals[2].text || '—';
   err.textContent = '';
   const btn = form.querySelector('button[type=submit]');
   btn.disabled = true; btn.textContent = 'Отправляем…';
@@ -353,7 +360,7 @@ async function submit(item, form, li) {
       if (d.refresh) { sending = false; refresh(true); }
       return;
     }
-    rememberPeople(vals.map(v => v.n));
+    rememberPeople(vals.map(v => v.n).filter(Boolean));
     delete drafts[item.row];
     items = items.filter(x => x.row !== item.row);
     lastSig = JSON.stringify(items);
