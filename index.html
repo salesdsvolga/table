@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Точки менеджера</title>
+<style>
+  :root {
+    --bg: #f3f5f4;
+    --surface: #ffffff;
+    --text: #1b2421;
+    --muted: #667570;
+    --line: #dde3e0;
+    --accent: #0f6b57;
+    --accent-ink: #ffffff;
+    --accent-soft: #e2f1ec;
+    --danger: #b3261e;
+    --horeca: #8a5a12;
+    --horeca-bg: #f8ecd5;
+    --retail: #1d4f8c;
+    --retail-bg: #e1ecf9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121715;
+      --surface: #1b2220;
+      --text: #e8eeeb;
+      --muted: #93a39d;
+      --line: #2d3733;
+      --accent: #3cc4a1;
+      --accent-ink: #08201a;
+      --accent-soft: #1d3a32;
+      --danger: #ff8a80;
+      --horeca: #f0c675;
+      --horeca-bg: #3a2f17;
+      --retail: #8fbbf0;
+      --retail-bg: #1b2d44;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 12px 48px; }
+
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    padding: 14px 0 10px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 12px;
+  }
+  h1 { font-size: 20px; margin: 0 0 2px; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .dot.off { background: var(--danger); }
+  .progress { height: 4px; background: var(--line); border-radius: 2px; margin: 10px 0; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .search {
+    width: 100%; padding: 11px 12px; font: inherit; color: var(--text);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  }
+
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .item {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden;
+  }
+  .item.open { border-color: var(--accent); }
+  .head {
+    width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit;
+    padding: 12px 14px; cursor: pointer; display: block;
+  }
+  .head:focus-visible, .btn:focus-visible, input:focus-visible, .search:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .name { font-weight: 550; overflow-wrap: anywhere; }
+  .tags { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--line); color: var(--muted); }
+  .tag.horeca { background: var(--horeca-bg); color: var(--horeca); }
+  .tag.retail { background: var(--retail-bg); color: var(--retail); }
+
+  form { padding: 0 14px 14px; display: none; }
+  .item.open form { display: block; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text] {
+    width: 100%; padding: 11px 12px; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+  .btn {
+    font: inherit; font-weight: 600; padding: 11px 18px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+  }
+  .btn.ghost { background: none; color: var(--text); border-color: var(--line); font-weight: 500; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .err { color: var(--danger); font-size: 14px; }
+
+  .empty, .fatal { text-align: center; padding: 40px 12px; color: var(--muted); }
+  .empty strong { display: block; color: var(--text); font-size: 18px; margin-bottom: 4px; }
+  .fatal strong { color: var(--danger); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
+    opacity: 0; transition: .2s; pointer-events: none; font-size: 14px; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Загрузка…</h1>
+    <div class="sub"><span class="dot" id="dot"></span><span id="status">Подключаемся к таблице</span></div>
+    <div class="progress"><div id="bar"></div></div>
+    <input class="search" id="search" type="search" placeholder="Поиск по названию или адресу" autocomplete="off">
+  </header>
+  <main>
+    <ul id="list"></ul>
+    <div id="message"></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<datalist id="people"></datalist>
+
+<script>
+// ВСТАВЬТЕ СЮДА адрес веб-приложения Apps Script (оканчивается на /exec)
+const API_URL = 'https://script.google.com/macros/s/AKfycbwrec_xhBUnFs6kZjLtrnojN2vEyK1Yr__RRf1TrM2yJ6OzcqPw3Q9Df0HV-9-iN2gs/exec';
+const POLL_MS = 10000;
+
+const key = new URLSearchParams(location.search).get('key') || '';
+const $ = id => document.getElementById(id);
+const els = { title: $('title'), status: $('status'), dot: $('dot'), bar: $('bar'),
+              list: $('list'), msg: $('message'), search: $('search'), toast: $('toast'), people: $('people') };
+
+let items = [];          // актуальный список с сервера
+let total = 0;
+let openRow = null;      // раскрытая точка
+const drafts = {};       // введённые, но не отправленные значения: row -> {a,b,c}
+let sending = false;
+let lastSig = '';
+
+// Подсказки: ранее введённые имена (хранятся только в этом браузере)
+function loadPeople() {
+  try { return JSON.parse(localStorage.getItem('people') || '[]'); } catch (e) { return []; }
+}
+function rememberPeople(vals) {
+  try {
+    const set = new Set([...vals.map(v => v.trim()).filter(Boolean), ...loadPeople()]);
+    localStorage.setItem('people', JSON.stringify([...set].slice(0, 40)));
+  } catch (e) {}
+  fillPeople();
+}
+function fillPeople() {
+  els.people.innerHTML = '';
+  loadPeople().forEach(p => { const o = document.createElement('option'); o.value = p; els.people.appendChild(o); });
+}
+
+function toast(text) {
+  els.toast.textContent = text;
+  els.toast.classList.add('show');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => els.toast.classList.remove('show'), 2200);
+}
+
+function setOnline(ok, text) {
+  els.dot.classList.toggle('off', !ok);
+  els.status.textContent = text;
+}
+
+async function fetchList() {
+  const r = await fetch(API_URL + '?key=' + encodeURIComponent(key) + '&t=' + Date.now());
+  return r.json();
+}
+
+async function refresh(force) {
+  if (sending && !force) return;
+  try {
+    const d = await fetchList();
+    if (!d.ok) return fatal(d.error || 'Ошибка');
+    els.title.textContent = d.manager;
+    total = d.total || d.items.length;
+    const sig = JSON.stringify(d.items);
+    if (sig !== lastSig || force) {
+      lastSig = sig;
+      items = d.items;
+      const gone = openRow !== null && !items.some(i => i.row === openRow);
+      if (gone) openRow = null;
+      const typing = document.activeElement && document.activeElement.closest &&
+                     document.activeElement.closest('form') && !gone && !force;
+      if (typing) { lastSig = ''; } else { render(); }
+    }
+    updateProgress();
+    const t = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setOnline(true, 'Обновлено в ' + t);
+  } catch (e) {
+    setOnline(false, 'Нет связи с таблицей, пробуем снова…');
+  }
+}
+
+function fatal(text) {
+  els.list.innerHTML = '';
+  els.msg.innerHTML = '<div class="fatal"><strong></strong></div>';
+  els.msg.querySelector('strong').textContent = text + '. Проверьте ссылку или запросите новую.';
+  els.title.textContent = 'Точки менеджера';
+  setOnline(false, 'Ошибка');
+  clearInterval(timer);
+}
+
+function updateProgress() {
+  const left = items.length;
+  const done = Math.max(total - left, 0);
+  els.bar.style.width = total ? (done / total * 100) + '%' : '0';
+  els.status.dataset.left = left;
+  document.title = left ? '(' + left + ') Точки менеджера' : 'Точки менеджера';
+}
+
+function typeTags(i) {
+  const seg = i.segment === 'HoReCa' ? 'horeca' : (i.segment === 'Розница' ? 'retail' : '');
+  const out = [];
+  if (i.segment) out.push('<span class="tag ' + seg + '">' + esc(i.segment) + '</span>');
+  if (i.type) out.push('<span class="tag">' + esc(i.type) + '</span>');
+  return out.join('');
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function render() {
+  const q = els.search.value.trim().toLowerCase();
+  const shown = items.filter(i => !q || i.name.toLowerCase().includes(q));
+  els.list.innerHTML = '';
+  els.msg.innerHTML = '';
+
+  if (!items.length) {
+    els.msg.innerHTML = '<div class="empty"><strong>Все точки заполнены</strong>Новых точек пока нет, список обновится сам.</div>';
+    return;
+  }
+  if (!shown.length) {
+    els.msg.innerHTML = '<div class="empty"><strong>Ничего не найдено</strong>Измените запрос поиска.</div>';
+    return;
+  }
+
+  shown.forEach(i => {
+    const li = document.createElement('li');
+    li.className = 'item' + (i.row === openRow ? ' open' : '');
+    const dr = drafts[i.row] || { a: '', b: '', c: '' };
+    li.innerHTML =
+      '<button type="button" class="head" aria-expanded="' + (i.row === openRow) + '">' +
+        '<div class="name">' + esc(i.name) + '</div><div class="tags">' + typeTags(i) + '</div></button>' +
+      '<form>' +
+        '<label>Кто делает заявки</label><input type="text" name="a" list="people" autocomplete="off" value="' + esc(dr.a) + '">' +
+        '<label>Кто их подтверждает</label><input type="text" name="b" list="people" autocomplete="off" value="' + esc(dr.b) + '">' +
+        '<label>Кто принимает товар</label><input type="text" name="c" list="people" autocomplete="off" value="' + esc(dr.c) + '">' +
+        '<div class="row"><button class="btn" type="submit">Отправить</button>' +
+        '<button class="btn ghost" type="button" data-act="cancel">Свернуть</button>' +
+        '<span class="err" role="alert"></span></div>' +
+      '</form>';
+
+    li.querySelector('.head').onclick = () => { openRow = (openRow === i.row) ? null : i.row; render(); focusFirst(); };
+    li.querySelector('[data-act=cancel]').onclick = () => { openRow = null; render(); };
+    const form = li.querySelector('form');
+    form.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
+      drafts[i.row] = { a: form.a.value, b: form.b.value, c: form.c.value };
+    }));
+    form.onsubmit = ev => { ev.preventDefault(); submit(i, form, li); };
+    els.list.appendChild(li);
+  });
+}
+
+function focusFirst() {
+  const f = els.list.querySelector('.item.open input[name=a]');
+  if (f) { f.focus(); f.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+}
+
+async function submit(item, form, li) {
+  const a = form.a.value.trim(), b = form.b.value.trim(), c = form.c.value.trim();
+  const err = li.querySelector('.err');
+  if (!a || !b || !c) { err.textContent = 'Заполните все три поля'; return; }
+  err.textContent = '';
+  const btn = form.querySelector('button[type=submit]');
+  btn.disabled = true; btn.textContent = 'Отправляем…';
+  sending = true;
+  try {
+    const r = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // без preflight-запроса
+      body: JSON.stringify({ key, row: item.row, name: item.name, requests: a, confirms: b, receives: c })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      err.textContent = d.error || 'Не удалось сохранить';
+      btn.disabled = false; btn.textContent = 'Отправить';
+      if (d.refresh) { sending = false; refresh(true); }
+      return;
+    }
+    rememberPeople([a, b, c]);
+    delete drafts[item.row];
+    items = items.filter(x => x.row !== item.row);
+    lastSig = JSON.stringify(items);
+    openRow = null;
+    render(); updateProgress();
+    toast('Сохранено: ' + item.name);
+  } catch (e) {
+    err.textContent = 'Нет связи, ничего не потеряно — попробуйте ещё раз';
+    btn.disabled = false; btn.textContent = 'Отправить';
+  } finally {
+    sending = false;
+  }
+}
+
+els.search.addEventListener('input', render);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+
+fillPeople();
+let timer;
+if (!key) {
+  fatal('В ссылке нет ключа');
+} else if (API_URL.indexOf('script.google.com') === -1) {
+  fatal('В index.html не указан адрес веб-приложения (API_URL)');
+} else {
+  refresh(true);
+  timer = setInterval(() => { if (!document.hidden) refresh(); }, POLL_MS);
+}
+</script>
+</body>
+</html>
