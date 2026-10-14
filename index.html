@@ -243,12 +243,17 @@ function esc(s) {
 
 const GROUPS = [['a', 'Кто делает заявки'], ['b', 'Кто их подтверждает'], ['c', 'Кто принимает товар']];
 
+// Достаём из строки до 10 «значащих» цифр, отбрасывая код страны/префикс (7 или 8).
+// Работает и когда цифр больше 11 из-за уже стоящей в поле «8», и для "+7 (927)…".
+function digits10(raw) {
+  let d = String(raw).replace(/\D/g, '');
+  while (d.length > 10 && (d[0] === '7' || d[0] === '8')) d = d.slice(1);
+  return d.slice(0, 10);
+}
+
 // Формат: 8 (927) 123-45-67, первая цифра всегда 8
 function formatPhone(raw) {
-  let d = String(raw).replace(/\D/g, '');
-  if (!d) return '8';
-  if (d[0] === '7' || d[0] === '8') d = d.slice(1);
-  d = d.slice(0, 10);
+  const d = digits10(raw);
   let s = '8';
   if (d.length) s += ' (' + d.slice(0, 3);
   if (d.length > 3) s += ') ' + d.slice(3, 6);
@@ -305,11 +310,42 @@ function render() {
       const v = readGroup(g[0]);
       form.querySelector('[data-copy=' + g[0] + ']').hidden = !(v.n.trim() && phoneOk(v.p));
     });
+
     GROUPS.forEach(g => {
       const ph = form[g[0] + '_p'];
+
       ph.addEventListener('input', () => { ph.value = formatPhone(ph.value); });
-      ph.addEventListener('focus', () => { setTimeout(() => ph.setSelectionRange(ph.value.length, ph.value.length), 0); });
+
+      ph.addEventListener('focus', () => {
+        setTimeout(() => ph.setSelectionRange(ph.value.length, ph.value.length), 0);
+      });
+
+      // Вставка: берём из буфера только цифры и заменяем поле целиком,
+      // поэтому «8», уже стоящая в поле, не мешает и не удваивается.
+      // Корректно обрабатывает "+7…", "8…", "7…", а также номера с любым форматированием.
+      ph.addEventListener('paste', ev => {
+        const text = (ev.clipboardData || window.clipboardData).getData('text') || '';
+        const d = digits10(text);
+        if (d.length !== 10) return;   // не похоже на российский номер — вставится как есть
+        ev.preventDefault();
+        ph.value = formatPhone(d);
+        ph.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
+      // Копирование: в буфер уходят только цифры в формате +7XXXXXXXXXX
+      ph.addEventListener('copy', ev => {
+        const s = ph.selectionStart, e = ph.selectionEnd;
+        const text = (s === e) ? ph.value : ph.value.slice(s, e);
+        const d = text.replace(/\D/g, '');
+        if (d.length < 7) return;
+        ev.preventDefault();
+        (ev.clipboardData || window.clipboardData).setData(
+          'text/plain',
+          '+7' + digits10(d)
+        );
+      });
     });
+
     form.addEventListener('input', () => { saveDraft(); updateCopy(); });
     form.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
       const k = b.dataset.copy, src = readGroup(k);
