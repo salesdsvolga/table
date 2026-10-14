@@ -93,7 +93,7 @@
   }
   .grp { margin-top: 12px; padding: 4px 12px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
   .grp label { margin-top: 8px; font-weight: 600; color: var(--text); }
-    .cap { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .cap { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
   .pair { display: grid; grid-template-columns: 1fr; gap: 8px; }
   @media (min-width: 520px) { .pair { grid-template-columns: 1fr 1fr; } }
   .grp input[type=text], .grp input[type=tel] { background: var(--surface); }
@@ -260,12 +260,13 @@ function phoneOk(p) { return String(p).replace(/\D/g, '').length === 11; }
 
 function grpHtml(k, title, d) {
   d = d || { n: '', p: '8' };
-   return '<div class="grp"><label>' + title + '</label><div class="pair">' +
+  return '<div class="grp"><label>' + title + '</label><div class="pair">' +
     '<div><span class="cap">Имя</span>' +
     '<input type="text" name="' + k + '_n" placeholder="Например, Иван" list="people" autocomplete="off" value="' + esc(d.n) + '"></div>' +
     '<div><span class="cap">Номер телефона</span>' +
     '<input type="tel" name="' + k + '_p" inputmode="tel" placeholder="8 (900) 000-00-00" autocomplete="off" value="' + esc(d.p || '8') + '"></div>' +
     '</div><button type="button" class="btn ghost copy" data-copy="' + k + '" hidden>Скопировать в остальные</button></div>';
+}
 
 function render() {
   const q = els.search.value.trim().toLowerCase();
